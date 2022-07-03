@@ -1,0 +1,56 @@
+---
+title: "R Assignment Template"
+author: "Amelia"
+date: '2022-05-10'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Introduction 
+
+Here you will answer some fundamental questions like, but are not limited to: 
+1. What is the purpose of this assignment?
+2. What data will you be using? Where is it from, how was it collected, when etc. 
+3. Are there any importatntn details about the data?
+4. Why is this important?
+
+```{r}
+# code may include summaries, head/tail, na, imputation, etc. 
+```
+
+
+#### Methods 
+
+1. What type of statistical test are you using?
+2. Why does it make sense for this data?
+3. What do you hope to gain out from this methodology?
+
+```{r}
+# run tests 
+```
+
+
+#### Results 
+
+1. What are the numeric results of the test?
+2. Did everything go how you expected?
+3. What do the results mean?
+4. Is anything significant?
+5. This is where you would but graphs
+
+```{r}
+# report results 
+```
+
+#### Conclusion 
+
+1. What general conclusions can you make from the results?
+2. What does this mean?
+3. How is this significant?
+4. How did the testing go?
+5. What shoud be done different/going forward?

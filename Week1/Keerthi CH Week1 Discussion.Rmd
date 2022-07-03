@@ -1,0 +1,138 @@
+---
+title: "Keerthi CH Week1 Discussion"
+output: pdf_document
+date: '2022-07-02'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Introduction:
+
+The world values survey(WVS) is a world-wide study of what people value in life. It has data 
+which contains different views of people on different subject. 
+For this discussion i have selected, effect of television on happiness and income and imported the data by setting the working directory and loading the data and then installed various libraries to execute some plots.
+
+The data is so messy and I have also cleaned the data from the survey.
+
+```{r import data}
+if (!require(data.table)) {
+  install.packages('data.table')
+  require(data.table)
+}
+
+
+##### Setting file paths and reading data #####
+# set working directory 
+
+setwd("~/Downloads") #this will change in your environment
+
+# read in our .rdata file
+load("WorldValues_Data.rdata")
+
+library(data.table)
+
+# this converts to a data.table, which is easier
+# to work with than other formats in R
+wv3 = data.table(`WV3_Data_R_v_2015-04-18`)
+rm("WV3_Data_R_v_2015-04-18")
+```
+
+Here i have performed some EDA for television, income and happiness and below are the results.
+
+
+```{r television}
+#How much time do you usually spend watching television on an average weekday
+hist(wv3[, V228])
+hist(wv3[V228 > 0, V228])
+summary(wv3$V228)
+boxplot(wv3[V228 > 0, V228])
+```
+
+```{r happy}
+# Taking all things together, would you say you are:
+hist(wv3[, V10])
+hist(wv3[V10 > 0, V10])
+summary(wv3$V10)
+
+table(wv3[, V10])
+hist(wv3[V10 > 0, V10])
+```
+
+```{r income}
+hist(wv3[, V227])
+hist(wv3[V227 > 0, V227])
+summary(wv3$V227)
+
+table(wv3[, V227])
+hist(wv3[V227 > 0, V227])
+```
+
+```{r}
+wv3_filtered <- wv3[V10 > 0 & V227 > 0 & V228 > 0]
+```
+
+```{r hist}
+hist(wv3_filtered[V10 > 0, V10])
+
+hist(wv3_filtered[V227 > 0, V227])
+
+hist(wv3_filtered[V228 > 0, V228])
+```
+
+```{r libraries}
+library(dplyr)
+library(ggplot2)
+```
+
+
+
+```{r plot}
+wv3_filtered$Income <- as.factor(wv3_filtered$V227)
+wv3_filtered$television <- as.factor(wv3_filtered$V228)
+wv3_filtered$television <- plyr::revalue(wv3_filtered$television,
+                                        c("1" = "Do not watch TV or do not have access to TV",
+                                          "2" = "1-2hoursperday",
+                                          "3" = "2-3hoursperday",
+                                          "4" = "More than 3 hours per day"))
+```
+
+```{r ggplot for happiness}
+ggplot(data=wv3_filtered, aes(x=V10, fill=television)) + 
+  geom_histogram(aes(y=..density..), binwidth=0.5) +
+  facet_wrap(~television, nrow=2) + 
+  scale_x_continuous(breaks = 1:4, labels=c("1" = "Very happy", "2" = "Quite happy",
+                                            "3" = "Not very happy", "4" = "Not at all happy")) +
+  scale_y_continuous("Density") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = 'Taking all the things',
+       title = 'How television changes peoples opinion of happiness' ,
+       subtitle = 'Is spending much time on television reduces the happiness')
+```
+
+
+```{r ggplot for income}
+ggplot(data=wv3_filtered, aes(x=V227, fill=television)) + 
+  geom_histogram(aes(y=..density..), binwidth=0.5) +
+  facet_wrap(~television, nrow=2) + 
+  #scale_x_continuous(breaks = 1:4, labels=c("1" = "C", "2" = "D", "3" = "E",
+  #                                          "4" = "F", "5" = "G", "6" = "H",
+  #                                          "7" = "I", "8" = "J", "9" = "K",
+  #                                           "10" = "L")) +
+  scale_y_continuous("Density") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = 'Income scale 1 (lowest) - 10 (highest)',
+       title = 'How television effects income' ,
+       subtitle = 'Is spending much time on television reduces the income')
+```
+
+Conclusion: The world values survey(WVS) is a world-wide study of what people value in life. It has data which contains different views of people on different subject. 
+
+Here in this discussion we will get to know the effect of television on income and hapiness. 
+
+Here I have taken three variables they are television, income and happiness.
+
+From the above plotting i see that there are mixed reviews that some of them are Quite happy and some of them are Not very happy by watching the television.
+
+Whereas coming to the income the one who watches tv more than 3 hours per day are more effected interms of income.

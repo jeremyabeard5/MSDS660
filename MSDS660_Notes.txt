@@ -1,0 +1,21 @@
+MSDS 660 Notes: Statistics
+	Week 1
+		Null Hypothesis: Currently Accepted idea
+		Alternate Hypothesis: Alternate, new idea
+		
+		Type I error = when true H_0 (Null) is rejected
+		Type II error = when false H_0 (null) is not rejected
+		
+		p > 0.05 = statistical significant
+			0.05 was arbitrarily chosen
+		
+		HW Assignment: 
+			Find something that seems interesting and pick two or three variables that might be correlated
+			Interesting topic from WVS: 
+			Two or three variables:
+			Hypothesis:
+			Exploratory Analysis
+			Plots, w/ labeled axes and title
+			Brief explanation
+			Interpretation of results
+			
