@@ -1,0 +1,256 @@
+---
+title: "MSDS 660 Week 2 Assignment"
+author: "Jeremy Beard"
+date: '2022-07-13'
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Introduction 
+
+In this week's assignment we will be exploring a dataset which came from Zillow, a popular website used for finding housing, apartments, etc. It has data on price, number of rooms, tax information, and the year each house was built. Additionally, it contains some data which is not numeric and for this week's assignment, we will only pay attention to the numeric data. The purpose of this assignment is to perform a simple linear regression analysis. It will involve finding correlations between variables, removing outliers, removing null values, plotting, and creating models. Let's begin!
+
+```{r}
+# first we will import packages, read in the data, create a dataframe, and view some summary information
+
+# load the data.table, ggolot2, and dplyr libraries and the zillow_price.csv file
+library('ggplot2')
+library('Rmisc')
+library('stargazer')
+library('dplyr')
+library('purrr')
+
+dt <- read.csv("C:\\Users\\jerem\\OneDrive\\Documents\\School\\_REGIS\\2022-05_Summer\\MSDS660\\Week2\\zillow_price.csv")
+
+# Convert the file to a data table
+dt <- as.data.frame(dt)
+
+head(dt)
+# how many observations and columns are there?
+# number of observations = number of rows = 90275
+nrow(dt)
+# number of columns = 60 
+ncol(dt)
+
+# use str and summary to see how many missing values we have,
+# and what the data looks like
+str(dt)
+summary(dt)
+
+```
+
+
+#### Methods 
+
+So, as we can see from the information above, there are many non-numeric columns in the dataset and there are many null/na values. For this week's assignment, it will make sense to remove these columns and these na values. For the simple linear regression, we will be creating boxplots of the data, finding which variables are most correlated to price, creating a model and scatterplot of this variable+price, and plotting the model. From this, we hope to gain an understanding of the highest correlation to price in the Zillow dataset, and also if removing outliers changes our conclusion at all.
+
+```{r}
+
+# first I'm going to just create some boxplots to satisfy my curiosity
+small_nums <- c('bathroomcnt',
+                'bedroomcnt',
+                'roomcnt')
+
+big_nums <- c('taxvaluedollarcnt',
+              'landtaxvaluedollarcnt',
+              'price')
+dt_smallnums <- dt[ , small_nums]
+dt_bignums <- dt[ , big_nums]
+boxplot(dt_bignums)
+title("Price Variables")
+boxplot(dt_smallnums)
+title("# Room Variables")
+boxplot(dt$yearbuilt)
+title("Year Built")
+boxplot(dt$calculatedfinishedsquarefeet)
+title("Square Feet")
+
+# columns that are numeric and don't have lots of missing values
+# you can add others if you like
+numeric_cols <- c('bathroomcnt',
+                  'bedroomcnt',
+                  'calculatedfinishedsquarefeet',
+                  'roomcnt',
+                  'yearbuilt',
+                  'taxvaluedollarcnt',
+                  'landtaxvaluedollarcnt',
+                  'price')
+
+# Simplify your dataset by only selecting the columns of your choosing dt[, numeric_cols, with = FALSE]
+dt_num <- dt[ , numeric_cols]
+
+summary(dt_num)
+
+# We want to try to correlate home price with another variable.
+# Let's look to see if there are any outliers in the price column we need to remove
+# Create a boxplot of the price data
+price_data <- c('price')
+dt_price <- dt[ , price_data]
+boxplot(dt_price, xlab="Price", ylab="Dollars")
+title("Home Price")
+
+# Wow there are expensive homes!
+
+# Remove the outliers. dt[!which(dt$price %in% boxplot(dt$price)$out)]
+dt_price_wo_outliers = dt_price[!dt_price %in% boxplot.stats(dt_price)$out]
+
+# How many outliers did we drop? And lets plot a new box plot to see the column
+# 90275 - 84180 = 6095  entries were dropped!!! that's a lot
+boxplot(dt_price_wo_outliers, xlab="Price", ylab="Dollars")
+title("Home Price (No Outliers)")
+
+# In our case, we have too many observations.  
+# Use sample() to only sample a few hundred (maybe 500) points to plot.
+# plot a few of the more interesting pairs together
+sample_dt_price_wo_outliers = sample(dt_price_wo_outliers, 500)
+boxplot(sample_dt_price_wo_outliers, xlab="Price", ylab="Dollars")
+title("Home Price (No Outliers) (n=500)")
+
+# create a new data.table by dropping any missing values
+# look up 'complete.cases()'
+# use dim() to see how many cases we dropped
+dt_no_na <- dt_num[complete.cases(dt_num),]
+#dt_no_na # this created waaaaaay too much output!
+dim(dt_num)
+dim(dt_no_na)
+
+# get the pearson correlation between price and another variable using cor()
+#...there are other types of correlations
+# try ?cor to see options, and try another correlation 
+#?cor
+cor(dt_no_na$yearbuilt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$yearbuilt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$bathroomcnt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$bedroomcnt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$calculatedfinishedsquarefeet, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$roomcnt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$taxvaluedollarcnt, dt_no_na$price, method="pearson")
+cor.test(dt_no_na$landtaxvaluedollarcnt, dt_no_na$price, method="pearson")
+#from these, it appears that taxvaluedollarcnt is the most correlated with price
+
+
+# use the lm() command to fit a linear model of price to the 
+# one variable you think is most correlated or predictive of price
+# lm stands for 'linear model'
+m1 <- lm(price ~ taxvaluedollarcnt, data = dt_no_na)
+
+
+```
+
+So the code above shows the correlation analysis and model creation of a simple linear regression. BUT this is with outliers still in the dataset. Now we will remove the outliers and perform the same analysis and then compare the models
+
+
+```{r}
+
+
+# The method commented out below didn't work, but I wanted to keep it here for posterity
+#findOutliers <- function(dataframe){
+#  dataframe %>%
+#  select_if(is.numeric) %>% 
+#    map(~ boxplot.stats(.x)$out)
+#}
+
+#outliers <- findOutliers(dt_num)
+#temp <- list()
+#for (col in names(outliers)) {
+#  outlier <- outliers[[col]]
+#  if (length(outlier) > 0) {
+#    temp[col] <- dt_num[-which(dt_num[[col]] %in% outlier),][col]
+#  } else {
+#    temp[col] <- dt_num[col]
+#  }
+#}
+
+#boxplot(temp)
+#removing the outliers makes all the row numbers different, hmm
+
+#let's try something different
+#find Q1, Q3, and interquartile range for values in column A
+Q1 <- quantile(dt_no_na$price, .25)
+Q3 <- quantile(dt_no_na$price, .75)
+IQR <- IQR(dt_no_na$price)
+
+#only keep rows in dataframe that have values within 1.5*IQR of Q1 and Q3
+no_outliers <- subset(dt_no_na, dt_no_na$price> (Q1 - 1.5*IQR) & dt_no_na$price< (Q3 + 1.5*IQR))
+
+#view row and column count of new data frame before and after
+dim(dt_no_na)
+dim(no_outliers) 
+
+cor.test(no_outliers$yearbuilt, no_outliers$price, method="pearson")
+cor.test(no_outliers$bathroomcnt, no_outliers$price, method="pearson")
+cor.test(no_outliers$bedroomcnt, no_outliers$price, method="pearson")
+cor.test(no_outliers$calculatedfinishedsquarefeet, no_outliers$price, method="pearson")
+cor.test(no_outliers$roomcnt, no_outliers$price, method="pearson")
+cor.test(no_outliers$taxvaluedollarcnt, no_outliers$price, method="pearson")
+cor.test(no_outliers$landtaxvaluedollarcnt, no_outliers$price, method="pearson")
+#from these, it appears that taxvaluedollarcnt is STILL the most correlated with price
+m2 <- lm(price ~ taxvaluedollarcnt, data = no_outliers)
+
+
+```
+
+Now after creating the models both with and without outliers included, we will view summaries and plots of each and then compare the results.
+
+#### Results 
+
+As we can see from the results below, the analysis using outliers was slightly different than the analysis with outliers removed. Looking at just the scatterplots with the regression line overlaid, the scatterplot with outliers removed looks much more widespread and scattered at first glance, but this is only because it is more-or-less a "zoomed-in" view of the scatterplot with outliers included. Removing outliers seemed to enhance the scatterplot a bit. 
+
+With regard to the model created for each of the two cases, we can see that the error has been reduced overall. The max residual was reduced from 14,391,401 to 971,142. The residual standard error was reduced from 179800 to 94970. 
+
+However, the R-squared value tells us that the model was actually not as well fit to the data without outliers, as it was with the outliers included. The R-squared value with outliers was 0.9061 while the R-squared value without outliers was 0.8297. This was also found when viewing the Pearson correlation with and without outliers, the same effect was found.
+
+```{r}
+
+# view the model summary 
+summary(m1)
+
+# plot a scatter plot of the price and the variable you chose
+plot(dt_no_na$taxvaluedollarcnt, dt_no_na$price, main = "Price vs. Tax Value Dollar Cnt", xlab = "Tax Value Dollar Cnt", ylab="Price")
+
+# add the regression line to the current plot using abline()
+abline(m1, col = "blue")
+
+# R makes it very easy to plot the diagnostics of a fit
+# here's a decent resources explaining the plots: 
+# http://data.library.virginia.edu/diagnostic-plots/
+# plot the fit diagnostics here
+par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
+plot(m1)
+
+par(mfrow=c(1,1)) # Change back to 1 x 1
+
+# view the model summary 
+summary(m2)
+
+# plot a scatter plot of the price and the variable you chose
+plot(no_outliers$taxvaluedollarcnt, no_outliers$price, main = "Price vs. Tax Value Dollar Cnt", xlab = "Tax Value Dollar Cnt", ylab="Price")
+
+# add the regression line to the current plot using abline()
+abline(m2, col = "blue")
+
+# R makes it very easy to plot the diagnostics of a fit
+# here's a decent resources explaining the plots: 
+# http://data.library.virginia.edu/diagnostic-plots/
+# plot the fit diagnostics here
+par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
+plot(m2)
+
+par(mfrow=c(1,1)) # Change back to 1 x 1
+
+```
+
+#### Conclusion 
+
+In conclusion, we found that when outliers were removed from the Price data from the Zillow dataset, the error was reduced overall but the simple linear regression model was also less correlated with the data, less accurately fit. This may be because the outliers helped to provide an indication of the general trend of the data and without them, the data was more scattered and thus it was more difficult to fit a model to the data. Overall, it was found that the Tax Value Dollar Count was the most correlated to home price, in both cases of outliers-included or outliers-removed. 
+
+In the future, we can improve this by finding other correlations between other variables in this dataset, or possibly by imputing null values instead of merely removing them. We can also include more columns or features from this dataset in our analysis and convert categorical data to numeric to give us more information to work with. 
+
+Thank you!
+Jeremy Beard
