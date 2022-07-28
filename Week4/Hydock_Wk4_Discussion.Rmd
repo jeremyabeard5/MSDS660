@@ -1,0 +1,177 @@
+---
+title: 'Week 3 Discussion: Multiple Linear Regression'
+author: "Ken Hydock"
+date: "2022-07-16"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Load the Required Libraries
+From our demo, we used just `data.table` and `stats`. When I was experimenting,
+I ended up using a few more.
+
+```{r libs, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if (!require(data.table)) {
+  install.packages('data.table')
+  require(data.table)
+}
+if (!require(stats)) {
+  install.packages('stats')
+  require(stats)
+}
+if (!require(car)) {
+  install.packages('car')
+  require(car)
+}
+if (!require(multcomp)) {
+  install.packages('multcomp')
+  require(multcomp)
+}
+
+library('data.table')
+library('stats')
+library('car')
+library('multcomp')
+```
+
+# Import and Load Data
+Loading from my working directory - remember to change this to your own
+if you run this code yourself. I'll also convert to a `data.table` in this chunk.
+
+```{r env}
+setwd("~/MSDS/MSDS660/wk4")
+dt <- read.csv("BusinessStartupCosts.csv")
+dt <- as.data.table(dt)
+dt
+```
+# Plot the Response and Predictor variables
+I wanted to simplify our column name down to simply `cost` as we can infer what
+it means by its aptly stated original name. Secondly, we need to change our
+character/categorical variable of `Business` to a factor so it will plot. Not
+doing this results in an `xlim` error for `plot.window`.
+
+```{r plot}
+names(dt)[names(dt) == 'Cost.in.Thousands.of.Dollars'] <- 'cost'
+dt$Business <- as.factor(dt$Business)
+plot(cost ~ Business, data = dt)
+```
+Mercifully, we have no outliers to deal with and have a pretty good idea of our
+data and what to expect moving forward. Noting that none of the `Business` have
+and IQR entirely independent of another will make for an interesting ANOVA.
+
+# Fit Using ANOVA
+Going straight into the `aov` fit instead of using `anova` on a `lm` model, we
+get the same answers in a more direct and strictly "analysis of variance" way.
+
+```{r anova}
+afit <- aov(cost ~ Business, data = dt)
+summary(afit)
+coefficients(afit)
+
+par(mfrow=c(2,2))
+plot(afit)
+```
+Checking out our p-value from the summary, we see it is less than the standard
+0.05 significance level, but not by much. Still this means that there is a indeed
+a difference between the means of our categories. Looking at our coefficients,
+it echoes what we see in the plot, that "Pet Store" is the cheapest venture and 
+so on for the other categories. I did notice however, that it left out "Baker"?
+
+Looking at the plot of our fit, we can check for the two big things with ANOVA:
+variance and distribution. Ideally, we want equal variance and normal distribution
+for our data to be able to accurately draw conclusions from ANOVA. 
+
+Residuals vs Fitted shows nothing too crazy, but there is a bit of increase of
+variance as the values get higher, particularly in a negative trend. Normal Q-Q
+looks about as the same as we've seen for previous assignments - "mostly" normal.
+Scale-Location echos much the same as RvF and Residuals vs Leverage doesn't show
+anything new as we know we don't have any potentially problematic outliers in 
+our data.
+
+One of the articles I read mentioned Levene's Test to formally test for equal
+variances. This test is contained in the `car` package.
+
+``` {r levene}
+leveneTest(cost ~ Business, data = dt)
+```
+Our results fail this test for equal variance, but there are many ways to mitigate
+this, such as normalizing our `cost` column. However, I believe this is outside
+the scope of the assignment! I just wanted to include this test for my own
+curiosity on the data.
+
+# Perform Post-Hoc Analysis
+With just the ANOVA fit, we can see we do have statistically different means 
+(based on 0.05 significance) for our categories, but it doesn't tell us precisely
+which categories are statistically different! Post Hoc Analysis accomplishes this.
+Primarily, we're using pairwise methodology, which is comparing one category
+against another to see if they are indeed statistically different. We'll see this
+measured by a p-value which undergoes a "family-wise" significance modifier to
+ensure we maintain an effective specified significance value. We'll start with
+the `TukeyHSD` function and a confidence level of `0.95` or a significance of 
+`0.05`.
+
+```{r tukey}
+TukeyHSD(afit, conf.level = 0.95)
+```
+We can make conclusions based on both `lwr`,`upr` and `p adj` values. The former
+is the upper and lower bounds of our confidence interval and if it contains `0`
+in the interval, the comparison is statistically insignificant. This is also
+indicated by our (family-wise) adjusted p-value. So anything that falls outside
+of our specified significance (`0.05`) or contains `0` in its interval is 
+statistically insignificant meaning it does not have a significantly different
+mean. The **only** significant factor appears to be `Pet Store-Baker` with a
+`p adj` of 0.0235. 
+
+I also saw a way to plot the `TukeyHSD` results, which knowing that if the 
+interval contains zero is bad, provides a quicker reference for our data.
+
+```{r tukeyplot}
+plot(TukeyHSD(afit, conf.level=.95), las = 2)
+```
+The plot echos, even if it cut off the label, that `Pet Store-Baker` is the only
+factor that is significant with our specifications.
+
+We can try another `pairwise` test, specifically Holm's method, which is one of
+many of our types of `pairwise` tests. This produces a matrix of our p-values for
+each grouping. The matrix looks funny because it doesn't print duplicate 
+information.
+```{r holm_pairwise}
+pairwise.t.test(dt$cost, dt$Business, p.adjust="holm")
+```
+Using this method, we get mostly the same results, but `Pizza-Pet Store` gets
+a lot closer to the significance threshold, but `Pet Store-Baker` is still the
+only significant result.
+
+The other methods each have their own specific niches, like "bonferroni" and
+"holm" being particularly useful for specific comparisons, rather than just 
+comparing the lot of categories like we have been. The "holm" method tends to be
+more statistically powerful even with a higher number of categories. 
+
+There's yet another method I read about called Dunnett's Correction, which treats
+one of the categories as a control and only compares all the categories against 
+that one. This method is contained in the "multcomp" library. By default it compares
+the first category to all the others, which in this case is `Baker` and it works
+since it contains our only significant comparison!
+
+``` {r dunnett}
+dunnet <- glht(afit, linfct = mcp(Business = "Dunnett"))
+summary(dunnet)
+```
+This shows us exactly what we knew already - `Pet Store-Baker` has a significantly
+different mean. 
+
+# Conclusion
+There's lots of ways to accomplish both ANOVA and Post Hoc Analysis. You'll find
+even more ways the more you research it! For this data set, only the 
+`Pet Store-Baker` comparison was shown to have a statistically different mean
+based on a family-wise significance of `0.05`. We could have normalized our 
+costs column into something like a min-max scale and maybe received different 
+results. Additionally, we could have reduced the number of categories for more 
+statistical power from our tests, which could have also affected the outcome. 

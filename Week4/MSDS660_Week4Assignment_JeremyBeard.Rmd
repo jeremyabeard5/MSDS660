@@ -1,0 +1,130 @@
+---
+title: "MSDS 660 Week 4 Homework Assignment"
+author: "Jeremy Beard"
+date: '2022-07-27'
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Introduction 
+
+In this week’s assignment, we will be exploring a dataset found on Kaggle. This dataset explores the salaries of data scientists from different locations, experience levels, and more. This assignment will focus on one-way ANOVA analyses and also performing post hoc analyses. The post hoc analysis that I chose to perform during this assignment was the Tukey HSD pairwise comparison. My null hypothesis when performing the regression model with categorical data was that there is no significant difference between the means of the different pairwise comparisons of categorical levels of experience. My alternate hypothesis when performing the model and analysis was that there would be a significant difference between the means of the different Tukey HSD pairwise comparisons of levels of experience. This type of analysis is important because it helps tell the data analyst or data scientist whether the results they are seeing are significant or not when fitting models to data. This helps provide a degree of confidence in the conclusions reached at the end of the analysis.
+
+In the code below, we simply load the csv file, probe the data for its size, shape, and metadata. Finally, we count the amount of null values in the dataset which in this case is zero!
+
+```{r}
+# code may include summaries, head/tail, na, imputation, etc. 
+
+##### MSDS660 Homework Assignment - Week 4 - ANOVA #####
+##### Jeremy Beard
+
+# Load the required libraries
+# import and load "ds_salaries.csv" data 
+# It is a data science salary dataset from : https://www.kaggle.com/datasets/ruchi798/data-science-job-salaries
+dt <- read.csv("C:\\Users\\jerem\\OneDrive\\Documents\\School\\_REGIS\\2022-05_Summer\\MSDS660\\Week4\\ds_salaries.csv", sep = ",")
+
+# Convert data to data table or data frame or whatever 
+dt <- as.data.frame(dt)
+
+head(dt)
+nrow(dt)
+ncol(dt)
+str(dt)
+summary(dt)
+
+which(is.na(dt$work_year))
+which(is.na(dt$experience_level)) # EN entry-level, MI mid-level, SE senior, EX executive
+which(is.na(dt$employment_type)) # PT part-time FT full-time CT contract FL freelance
+which(is.na(dt$job_title))
+which(is.na(dt$salary))
+which(is.na(dt$salary_currency))
+which(is.na(dt$salary_in_usd))
+which(is.na(dt$employee_residence))
+which(is.na(dt$remote_ratio))
+which(is.na(dt$company_location))
+which(is.na(dt$company_size)) # S: <50, M: 50<x<250, L: 250+
+
+# it looks like the data is clean already! Thank goodness
+```
+
+
+#### Methods 
+
+The specific models and tests we are using in this week's assignment are boxplots of the dependent variable (salary_in_usd) vs. the categorical variable (experience_level), fitting a regression model to the two variables, fitting the model to the two variables using ANOVA, and finally performing a post-hoc analysis using the Tukey HSD analysis. The significance of the results will be discussed afterward.
+
+```{r}
+# run tests 
+
+# Plot the dependent variable vs the categorical variables (should be a boxplot)
+# in this case, the dependent variable is salary_in_usd and i will choose the categorical 
+#   variable of experience_level
+par(mfrow = c(1,1))
+#specify logical order for box plots, per here: https://r-graph-gallery.com/9-ordered-boxplot.html
+dt$experience_level <- factor(dt$experience_level , levels=c("EN", "MI", "SE", "EX"))
+boxplot(salary_in_usd ~ experience_level, data = dt)
+
+# Fit the dependent variable to the categorical variables using ANOVA
+# First I will just fit a regression model to the two variables
+fit <- lm(salary_in_usd ~ experience_level, data = dt)
+summary(fit)
+anova(fit)
+par(mfrow=c(2,2))
+plot(fit)
+
+# Now I will perform a fit using ANOVA
+afit <- aov(salary_in_usd ~ experience_level, data = dt)
+
+
+
+```
+
+
+#### Results 
+
+In this section of the assignment, we will show the summary of the ANOVA fit, view the coefficients and plot the data, and perform the Tukey HSD post-hoc analysis discussed earlier in the assignment. The results of the post-hoc analysis were interesting. It showed that all of the pairwise comparisons created during the Tukey HSD analysis had a significant difference. This was strange as I wouldn't expect all of the comparisons to have such low p-values. I even had to add digits to the Tukey HSD results so they wouldn't be displayed/interpreted as zero. 
+
+```{r}
+# report results 
+
+# View the ANOVA summary
+summary(afit)
+
+# View the coefficients of the ANOVA fit
+coefficients(afit)
+
+# Change the plot window to a 2x2
+par(mfrow=c(2,2))
+
+# Plot the residuals
+plot(afit)
+
+# Perform the post hoc analysis that you were assigned.
+
+# I'm choosing to perform a TukeyHSD pairwise comparison
+tfit <- TukeyHSD(afit, conf.level = 0.95) # TukeyHSD pairwise comparison
+str(tfit)
+print(tfit,digits=15)
+
+par(mfrow=c(1,1))
+plot(tfit)
+# Which post hoc analysis did you perform and which variables(s) have means that are significantly different? 
+# I performed a TukeyHSD pairwise comparison post hoc analysis. This analysis showed that 
+#   it seems all p adj values are under p=0.05. this is interesting, this implies that
+#   all differences between means are significant. I tried using difference confidence levels
+#   of 0.90, 0.95, 0.97, and 0.99 and received the same p values using all of these. 
+#   What could be causing these universally low p values?
+
+
+# source: https://stats.stackexchange.com/questions/253588/interpreting-tukeyhsd-output-in-r
+
+```
+
+#### Conclusion 
+
+In conclusion, this week's assignment told us that there were significant differences in the salaries earned by each level of experience (Entry, Mid-Level, Senior, Executive). The null hypothesis could be rejected and the alternate hypothesis was accepted. However, I believe further analysis is warranted as the p-values of the Tukey HSD analysis were all exceptionally low. This seems a bit strange and should be checked and possibly corrected if an error was made. Future analyses should definitely be made, iterating using insights gained from the strange p-values received in the first round of analyses. Thank you!
