@@ -1,0 +1,109 @@
+---
+title: "week-5-discussion"
+output: 
+    word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+date: "2022-08-03"
+---
+
+## MULTI WAY ANOVA IN CLASS ASSIGNMENT ## 
+
+# Load the libraries
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('data.table')
+library('ggpubr')
+library('magrittr')
+library('dplyr')
+```
+
+# Load 'Interactions_Categorical.csv' data set
+# Convert data set to data.table
+```{r}
+
+dt <- read.csv("/Users/alisha/Downloads/Interactions_Categorical.csv")
+dt <- as.data.table(dt)
+str(dt)
+```
+# Check structure of dt
+```{r}
+dim(dt)
+str(dt)
+summary(dt)
+head(dt)
+```
+# Convert Food and Condiment to factors
+```{r}
+cols <- c("Food", "Condiment")
+
+dt %<>% mutate_each_(funs(factor(.)),cols)
+str(dt)
+```
+# Plot histogram of Enjoyment
+```{r}
+hist(dt$Enjoyment,
+     prob=TRUE,
+     main = "Histogram of Enjoyment",
+     xlab = "Number of interactions",
+     ylab = "Density",
+     col="Red")
+```
+# Plot Enjoyment vs the 2 other factors 
+
+```{r plot}
+plot.design(Enjoyment ~ ., data = dt)
+```
+# Plot Individual Boxplots with means
+
+```{r}
+boxplot(Enjoyment ~ Food, data = dt, ylab = 'Enjoyment', xlab = 'Food')
+points(dt[, mean(Enjoyment), by=Food])
+boxplot(Enjoyment ~ Condiment, data = dt, ylab = 'Enjoyment', xlab = 'Condiment')
+points(dt[, mean(Enjoyment), by=Condiment])
+
+```
+# Create interaction plot looking at Condiment and Food
+
+```{r}
+interaction.plot(x.factor = dt$Condiment,
+                 trace.factor = dt$Food, 
+                 response = dt$Enjoyment,
+                 fun = mean, 
+                 type = "b",  # shows each point
+                 main = "Interaction Plot",
+                 legend = TRUE,
+                 trace.label = "FOOD",
+                 xlab = "Condiment",
+                 ylab="Enjoyment",
+                 pch=c(1),
+                 col = c("Green"))
+```
+# Build ANOVA model - the * is giving interactions. Show anova fit summary
+```{r fit}
+fit <- aov(Enjoyment ~ Food * Condiment, data = dt)
+summary(fit)
+```
+
+# Perform TukeyHSD to check if which interactions have a significant difference
+```{r}
+TukeyHSD(fit)
+```
+
+# Plot the residuals of the fit
+```{r}
+par(mfrow = c(2,2))
+plot(fit)
+```
+
+# Perform Shapiro test to see if residuals are normald distributed.
+```{r}
+shapiro.test(residuals(fit))
+hist(residuals(fit))
+```
+Reference
+Frost, J. (2022, July 22). Understanding interaction effects in statistics. Statistics By Jim. Retrieved August 3, 2022, from https://statisticsbyjim.com/regression/interaction-effects/ 
+

@@ -1,0 +1,159 @@
+---
+title: "MSDS 660 Week 6 Project Assignment"
+author: "Jeremy Beard"
+date: '2022-08-03'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Introduction 
+
+The purpose of this week's assignment is to perform two-way analysis of variance (AOV) modeling. AOV is where the means of variables within a dataset are tested to see if they are significantly different or not. Different combinations of variables and the differences between them are also tested. For this project, we will be working with an engineer salary dataset. This dataset was provided to us as part of the class assignment. It is a clean dataset with no null values! This assignment is important as it shows data scientists which variables and specifically combinations of variables are significant. This can help improve model performance and prediction. 
+
+
+```{r}
+
+
+# Load the libraries - I probably loaded some unnecessary libraries but I'm keepin em, I've got enough RAM
+library(ggplot2)
+library(devtools)
+library(data.table)
+library(ggpubr)
+library('magrittr')
+library('dplyr')
+
+# Load in the data first
+dt <- read.csv("C:\\Users\\jerem\\OneDrive\\Documents\\School\\_REGIS\\2022-05_Summer\\MSDS660\\Week5\\engineer.csv", sep = ",")
+# Load 'data set to data.table
+dt <- as.data.table(dt)
+
+# Check structure of dt with different metadata probing commands
+head(dt)
+nrow(dt)
+ncol(dt)
+summary(dt)
+str(dt)
+
+# I have visually looked at the data and there are no null values!
+
+
+```
+
+
+#### Methods 
+
+For this week's assignment, we will be first creating many plots to show the shape of the data and how Salary is related to the different other parameters.
+
+After creating plots, we will create an AOV model and will optimize it using analysis of p-values. After optimizing the model, we will perform a TukeyHSD analysis and see which combinations of variables have significant differences to other specific combinations of variables. 
+
+Finally, we will perform a Shapiro test of the residuals to see if the residuals are normally distributed.
+
+```{r}
+
+# Plot histogram of Salary
+hist(dt$Salary, main="Salary")
+par(new = TRUE)
+boxplot(dt$Salary, horizontal = TRUE, col = rgb(0, 0.8, 1, alpha = 0.5))
+box()
+
+# Convert Profession and Region to factors
+cols <- c("Profession", "Region")
+dt %<>% mutate_each_(funs(factor(.)),cols)
+
+
+# Plot Salary vs the 2 other factors 
+plot.design(Salary ~ ., data = dt)
+
+
+# Plot Individual Boxplots with means
+boxplot(Salary ~ Profession, data = dt)
+points(dt[, mean(Salary), by=Profession])
+boxplot(Salary ~ Region, data = dt)
+points(dt[, mean(Salary), by=Region])
+
+# Plot 3-dimensional boxplot
+ggboxplot(dt, x = "Profession", y = "Salary", color = "Region")
+
+# Create interaction plot looking at Region and Profession
+interaction.plot(x.factor = dt$Profession,
+                 trace.factor = dt$Region, 
+                 response = dt$Salary,
+                 fun = mean, 
+                 type = "b",  # shows each point
+                 main = "Interaction Plot",
+                 legend = TRUE,
+                 trace.label = "Region",
+                 xlab = "Profession",
+                 ylab="Salary",
+                 pch=c(1),
+                 col = c("Red"))
+
+
+
+```
+
+
+#### Results 
+
+From the analysis above and below, it was found that all variables had significant differences. Both Region, Profession, and Profession:Region had p values under 0.05 which indicated the previous statement. From that, only one iteration of the AOV model was performed. Lucky break!
+
+After optimizing the model, a TukeyHSD analysis was performed on the AOV model and it was found that only Seattle-San Francisco have insignificant differences, from any of the Professions or Regions. All other combinations of Professions and combinations of Regions had significant differences. 
+
+The residuals of the model showed a great fit to the data! Wow, and only on one iteration of the AOV parameters. We got lucky with this dataset.
+
+Finally, in the Shapiro test of the residuals, it was found that the p-value was only 0.032. This showed that the residuals could not be considered normal. 
+
+```{r}
+# report results 
+
+# Build ANOVA model - the * is giving interactions. Show anova fit summary
+model <- aov(Salary ~ Profession * Region, data = dt)
+summary(model)
+
+# Everything is significant! 
+
+
+model2 <- aov(Salary ~ Profession + Region + Profession:Region, data = dt)
+summary(model2)
+
+# Based on the model people like hot dogs and ice cream the same.  There is a Profession Salary depends on Region and
+# Profession and Region together interact and affect people Salary
+
+# Perform TukeyHSD to check if which interactions have a significant difference
+TukeyHSD(model)
+
+#We can see Seattle-San Francisco is not significant. 
+#We can also see this when we look at the interaction plot. 
+#The lines of Seattle and San Francisco were very similar.
+
+# Plot the residuals of the fit
+par(mfrow = c(2,2))
+plot(model)
+par(mfrow = c(1,1))
+
+
+
+# Perform Shapiro test to see if residuals are normally distributed.
+shapiro.test(residuals(model))
+hist(residuals(model), breaks=40)
+
+```
+
+#### Conclusion 
+
+From the results, it can be said in a general sense that both Region and Profession have significant differences and should be included in the AOV model. They both have p values under 0.05 when a summary of the AOV model was given. The model showed us that the salaries between engineers of Seattle and San Francisco were very similar compared to comparisons of those variables with New York. The plot of Salary vs. the other design factors showed us that data scientists get paid far more than software engineers or BI engineers. Additionally, People in San Francisco get paid more than those in Seattle or those in New York. However, as BI engineers, those who live in Seattle generally get paid more than those in New York or San Francisco. The interaction plot showed us that BI engineers all get paid a similar amount regardless of region. The plot of the model showed a good fit to the data!
+
+Some things to consider in the future are more parameters to compare such as relationship status, race, and more. We can also explore more of the combinations from the TukeyHSD analysis and try to define why the p values are the way that they are, why they are significant differences or not. 
+
+Thank you!
+
+Jeremy Beard
+
+#### References
+
+1. What P-Value Tells Us. (2022, May 18). Investopedia. Retrieved August 3, 2022, from https://www.investopedia.com/terms/p/p-value.asp

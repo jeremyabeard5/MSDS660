@@ -1,0 +1,229 @@
+---
+title: 'Week 5 Discussion: Multiple ANOVA'
+author: "Ken Hydock"
+date: "2022-08-01"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Load the Required Libraries
+From our demos, I'm going to use `data.table` as it's necessary and `ggpubr` for
+the more robust plots. 
+
+```{r libs, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if (!require(data.table)) {
+  install.packages('data.table')
+  require(data.table)
+}
+if (!require(ggpubr)) {
+  install.packages('ggpubr')
+  require(ggpubr)
+}
+if (!require(magrittr)) {
+  install.packages('magrittr')
+  require(magrittr)
+}
+if (!require(dplyr)) {
+  install.packages('dplyr')
+  require(dplyr)
+}
+
+library('data.table')
+library('ggpubr')
+library('magrittr')
+library('dplyr')
+```
+
+# Import, Convert, and Inspect Data
+Loading from my working directory - remember to change this to your own
+if you run this code yourself. We're also converting the data to a `data.table`
+and we'll check out its structure.
+
+```{r env}
+setwd("C:\\Users\\jerem\\OneDrive\\Documents\\School\\_REGIS\\2022-05_Summer\\MSDS660\\Week5")
+dt <- read.csv("Interactions_Categorical.csv")
+dt <- as.data.table(dt)
+str(dt)
+```
+Looks like we have variables for `Enjoyment`, `Food`, and `Condiment`. If I had 
+to guess, I'd say we're seeing how much subjects enjoy various foods with various
+condiments...
+
+# Convert Food and Condiment to factors
+We know by now that categorical variables aren't going to play nice unless we 
+factorize them. I've been enjoying exploring different ways to do things, so
+here is a way we can convert a list of columns to factors.
+
+```{r factor}
+library('magrittr')
+library('dplyr')
+
+cols <- c("Food", "Condiment")
+
+dt %<>% mutate_each_(funs(factor(.)),cols)
+str(dt)
+```
+That makes more sense now - we have two foods, `Hot Dog` and `Ice Cream` and
+putting both `str` outputs together, `Chocolate Sauce` and `Mustard` as our
+condiments. Yum...?
+
+# Plot a Histogram of Enjoyment
+We can check out what we're working with by a quick histogram to see the density
+of our dependent variable, `Enjoyment`. In honor of `Mustard`, let's use yellow!
+
+```{r hist_enjoyment}
+hist(dt$Enjoyment,
+     prob=TRUE,
+     main = "Histogram of Food Enjoyment",
+     xlab = "Enjoyment",
+     ylab = "Density",
+     col="yellow")
+```
+That's a pretty interesting distribution; not normal in any way. Enjoyment is 
+either love it or hate it, it seems. 
+
+# Plot Enjoyment vs the 2 other factors 
+```{r plot.design}
+plot.design(Enjoyment ~ ., data = dt)
+```
+I think what we can derive from this `plot.design` is that `Chocolate Sauce` has
+a more significant effect on `Enjoyment` than `Mustard` and that `Hot Dogs` are
+enjoyed more than `Ice Cream`. Let's see if we can prove these conclusions with
+other plots.
+
+# Plot Individual Boxplots with means
+Next up we can look at `boxplot` to get more visible information on our data. We
+can see who is the winner by mean from our hypothesis above.
+
+```{r boxplots}
+par(mfrow = c(1,2))
+boxplot(Enjoyment ~ Food, data = dt)
+points(dt[, mean(Enjoyment), by=Food])
+boxplot(Enjoyment ~ Condiment, data = dt)
+points(dt[, mean(Enjoyment), by=Condiment])
+```
+I would say the mean `Enjoyment` for `Food` is equal, but `Chcoloate Sauce` is
+the clear favorite `Condiment`. Even enjoying both, I would have to say that
+`Chocolate Sauce` does have and extra kick of happiness where as `Mustard` is just
+"yummy".
+
+We can try to `ggboxplot` to make a more powerful (read colorful) graph while
+including all of our data.
+
+```{r ggboxplot}
+ggboxplot(dt, x = "Food", y = "Enjoyment", color = "Condiment")
+```
+We can see the natural pairing of `Food` and `Condiment` does result in higher 
+`Enjoyment`. It is also quite distinct that `Ice Cream` + `Chocolate Sauce` is
+slightly more enjoyable. However, can can also observe that people derive more 
+`Enjoyment` from chocolate covered hot dogs than mustard on ice cream - though 
+there are a couple of weirdos that seem to like the latter combo.
+
+# Create interaction plot looking at Condiment and Food
+Thankfully, since we only have two groups of two independent variables we can 
+squeeze everything into a single `interaction.plot` and cleverly color it 
+according to our `Condiments` in this case. The colors didn't show very well
+so I specified the line thickness with `lwd = 3`
+```{r interaction}
+interaction.plot(x.factor = dt$Food,
+                 trace.factor = dt$Condiment, 
+                 response = dt$Enjoyment,
+                 fun = mean, 
+                 type = "b",  # shows each point
+                 main = "Interaction Plot",
+                 legend = TRUE,
+                 trace.label = "Condiment",
+                 xlab = "Food",
+                 ylab="Enjoyment",
+                 pch=c(1, 2),
+                 col = c("Brown", "Yellow"),
+                 lwd = 3)
+```
+No new insights gleaned from this chart. We see the same relationships we
+observed on the `ggboxplot`. 
+
+# Build ANOVA Model
+From our demo, we know that the `*` and `+` operator perform as interactions and
+specific groupings respectively. Let's see what we get when we use everything we
+have with the interaction operator.
+
+```{r fit}
+fit <- aov(Enjoyment ~ Food * Condiment, data = dt)
+summary(fit)
+```
+We can quickly see that the `Food` group is statistically insignificant. Recalling
+our purpose of ANOVA, that means our means between the `Hot Dog` and `Ice Cream`
+are not different or plainly said, people like both statistically, equally. Both
+`Condiment` and `Food:Condiment` are significant, as we should expect from our 
+graphs. 
+
+With the tools we've learned from our demos, we can narrow our model down to just
+the significant variables.
+
+```{r fit2}
+fit2 <- aov(Enjoyment ~ Condiment + Food:Condiment, data = dt)
+summary(fit2)
+```
+Everything is significant! We can takeaway from this that the `Condiment` types
+and the relationship between `Condiment:Food` results in a different mean. In
+absolute layman terms, more people enjoy `Chocolate Sauce` than `Mustard` and
+the effect of these as a condiment on `Hot Dog` and `Ice Cream` is not identical.
+
+# Perform TukeyHSD
+Now that we have our ANOVA model fitted, we can perform some post hoc analysis.
+Admittedly, post hoc of multiple ANOVA can get messy fast, which is why it was
+important for us to eliminate the insignificant relationships early so they won't
+cause clutter here.
+
+```{r tukey}
+TukeyHSD(fit2)
+```
+First, we see what we already know - our `Condiment` groups are significant of
+each other. Below that, we see our `Condiment:Food` relationships broken down and
+a lot of good information! The proper combination (`Hot Dog:Mustard` and
+`Ice Cream:Chocolate Sauce`) as well as their inverse are not significant. Meaning
+the proper combination is mutally enjoyable and the improper mutually revolting.
+The rest of the comparisons are saying that a good combo:bad combo is statistically
+significant.
+
+# Plot the residuals of the fit
+Now we can take a look at our residuals, a plot set that we're becoming quite
+familiar with...
+
+```{r residuals}
+par(mfrow = c(2,2))
+plot(fit2)
+```
+No surprises here - I would actually say that's the best Residuals vs Fitted plot
+I've seen this class; maybe skewed ever so slightly to the negatives, but the 
+homoskedasticity looks great (I think). The Normal Q-Q plot shows a notable
+departure from normality, but if you recall our histogram of enjoyment density
+there wasn't much in the middle; this is a love it or hate it data set. I think
+the love it-hate it relationship is responsible for the plateau in Scale-Location.
+We know we have no outliers (other than a few weirdos who thought mustard on ice
+cream wasn't so bad), so the leverage plot is relatively perfect.
+
+# Perform Shapiro test to see if residuals are normally distributed.
+I didn't quite understand what I was looking at with the text results from this
+test, so I looked it up on Statology for a better explanation.
+``` {r shapiro}
+shapiro.test(residuals(fit2))
+hist(residuals(fit2), breaks=40)
+```
+It's important to remember that we're testing the **residuals** here, not the
+`Enjoyment`, which we know was anything but normal. We have a p-value of 0.2229
+and a p-value **above** significance (0.05) is good, or normally distributed. I
+can sympathize that this is normal, but it definitely looks skewed to the left
+and isn't that far from the confidence level. We can call it my favorite term:
+"mostly" normal.
+
+# References
+Zach. (2021, September 29). How to perform a Shapiro-Wilk test in R (with examples). Statology. Retrieved August 1, 2022, from https://www.statology.org/shapiro-wilk-test-r/ 
