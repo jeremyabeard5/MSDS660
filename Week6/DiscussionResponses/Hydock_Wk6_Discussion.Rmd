@@ -1,0 +1,456 @@
+---
+title: 'Week 6 Discussion: Logistic, Multinomial and Polynomial Regression'
+author: "Ken Hydock"
+date: "2022-08-07"
+output:
+  word_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Load the Required Libraries
+I have a few extra libraries that were not in the demo. Additionally, I didn't
+encounter anything that required `dplyr`. I commented with what function is
+utilized by each library.
+
+```{r libs, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if (!require(data.table)) {
+  install.packages('data.table')
+  require(data.table)
+}
+# For vif
+if (!require(car)) {
+  install.packages('car')
+  require(car)
+}
+# For confusionmatrix
+if (!require(caret)) {
+  install.packages('caret')
+  require(caret)
+}
+# For sample.split
+if (!require(caTools)) {
+  install.packages('caTools')
+  require(caTools)
+}
+# For roc
+if (!require(pROC)) {
+  install.packages('pROC')
+  require(pROC)
+}
+# For stepAIC
+if (!require(MASS)) {
+  install.packages('MASS')
+  require(MASS)
+}
+
+# For ggplot
+if (!require(ggplot2)) {
+  install.packages('ggplot2')
+  require(ggplot2)
+}
+# For ggarrange
+if (!require(ggpubr)) {
+  install.packages('ggpubr')
+  require(ggpubr)
+}
+# For reverse.levels
+ if (!require(likert)) {
+   install.packages('likert')
+   require(likert)
+ }
+```
+
+# Import, Convert, and Inspect Data
+Let's get to work! As always, don't forget to update your working directory. We
+can see we're working with a .data file. I wonder how that's going to look? I'll
+also go ahead and use the `set.seed` function for repeatable results with randomization
+functions and I created a variable for our threshold cutoff value in case we want
+to easily adjust it throughout the document.
+
+```{r env}
+setwd("~/MSDS/MSDS660/wk6")
+dt <- read.csv("breast-cancer-wisconsin.data")
+dt <- as.data.table(dt)
+
+# Set the seed to the meaning of life and everything.
+set.seed(42)
+
+cutoff = 0.5 
+
+str(dt)
+```
+So that .data file didn't do us any favors - it doesn't have a header! Thankfully,
+it generated something akin to headers so it didn't mess with the first row. Time
+to get this data ready for use.
+
+# Data Preparation
+First up, we have a conveniently prescribed set of column names from our assignment.
+For the curious one, I did find an original reference to the data set which 
+corroborates these names as well as explains a few other things...
+
+https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+(Original)
+
+```{r colnames}
+# Name all the variables
+colnames(dt) <- c("id", "clump_thickness", "cell_size", "cell_shape" ,"marginal_adhesion" , "se_cell_size", 
+                  "bare_nucleoli" ,"bland_chromatin", "normal_nucleoli", "mitoses", "Class")
+str(dt)
+```
+Looking better... We can see a bunch of interger columns and one column of
+character encoded numbers. That's something we need to fix, as well as dropping
+the extraneous index column `id` and factorizing our `Class` as our dependent
+variable. From the reference linked above, we can see that `2` is `Benign` and `4`
+is `Malignant`. That's a useful bit of information we needed. Lastly, if running
+these adjustment individually, we'd note that doing the coercion `as.integer` 
+function, we create a few `NA` records as whatever was in the `bare_nucleoli` 
+column may not have been **all** character encoded integers.
+
+```{r prep}
+# Remove id column
+dt$id <- NULL
+
+# Factor Class column
+dt$Class <- factor(dt$Class, labels = c('B', 'M'))
+
+# Change bare_nucleoli column to integer
+dt$bare_nucleoli <- as.integer(dt$bare_nucleoli)
+
+dt <- dt[complete.cases(dt),]
+
+str(dt)
+```
+Looking ready to go. I do want to mention a misgiving I had with the `as.factor`
+function this go round. While we did only have two encodings (2 and 4), the
+function does not specify how it works. It works in the logical sense simplifying
+2 to 1 as `B` and 4 to 2 as `M`, but there would have been some piece of mind if
+I could explicitly state that to the function so I *know* what to expect of it.
+
+# Train & Test Sets
+Now that our data is ready, we can split it up into training and test sets. Why
+would we do this? Well in the Machine Learning (ML) sense, we're building a model
+to test against data. So realistically, we want it to learn from one data set and
+perform on another - train and test!
+
+I saw a bunch of ways to achieve this, the most common other way involved `dplyr`,
+but I found the demo way to be a bit more elegant and saved on including an
+additionally library for our purposes. The `0.8` below signifies that we're creating
+a sample of 80% of our data set. Then we make our training set out of that 80%
+and a test set of the remaining 20%. We want our training data to be more robust
+than the testing data to generate a reliable model. This also ensures that we're
+not using the same data for both sets.
+
+```{r sets}
+dt.sample <- sample.split(dt$Class, SplitRatio = 0.8)
+dt.train <- subset(dt, dt.sample == TRUE)
+dt.test <- subset(dt, dt.sample == FALSE)
+```
+
+# Create a Binomial Logistic Regression Model
+I got super-duper confused between the two demos on this part. I went a proverbial
+rabbit hole. Let me save you some time - the way the `lm` and `glm` are done in
+the different demos are the same. Doing the `lm` way allows you to specify attributes
+using the `+` and `*` operators as we've come to know. Additionally, you can use
+the `poly` function with `lm` to specify your polynomial. This is useful with
+a simple plot that you can estimate the right polynomial to your goal. Using `glm`
+with the `family = "binomial"(link="logit")` flags does exactly what our course
+content was talking about with much less thinking on our end.
+
+```{r glm.model}
+dt.model <- glm(Class ~ ., data = dt.train, family = "binomial"(link="logit"))
+summary(dt.model)
+```
+Looking at our `summary`, we can se we have a handful of insignificant variables.
+You may also note that this `summary` is missing a lot of things like R2. You can
+look into it, but the way we evaluate this binomial models and their non-linearity
+doesn't care about normal distribution or residuals in the same way. The deviance
+values are the residuals as the err from the model in a non-linear fashion, so
+they're the indicator of fit.
+
+We've got a couple assumptions we can check to to see how well our model is
+performing, such as VIF and AIC to make improvements.
+
+# Check for Collinearity
+It's been a couple weeks since we've looked at VIF, but a value of 1-5 is okay,
+but anything higher is problematic.
+
+```{r vif}
+vif(dt.model)
+```
+I don't see any problems, but we do have a couple that are higher than the others.
+
+# StepAIC to Clean Model
+It's also been awhile since we've used `stepAIC`. We'll be doing this to remove
+unnecessary variables to simplify and increase the statistical power of our model.
+The curse of dimensionality never goes away, so having an effective model with 
+as few dimensions as possible translates to more efficiency without sacrificing
+accuracy.
+
+```{r stepAIC}
+stepAIC(dt.model, dirrection = 'both')
+```
+So we can see it *step* through a few iterations to generate the lowest AIC possible.
+This in turn gives us a new model to try which will have fewer variables but still
+keeping a majority of the accuracy and significance of the model, if not improving
+it outright.
+
+We can run it again just to make sure we have the best fit for our model!
+
+```{r stepAIC2}
+dt.model2 <- glm(formula = Class ~ clump_thickness + marginal_adhesion + bare_nucleoli + 
+    bland_chromatin + normal_nucleoli + mitoses, family = binomial(link = "logit"), 
+    data = dt.train)
+
+stepAIC(dt.model2, dirrection = 'both')
+summary(dt.model2)
+```
+With an AIC of 89.286, it looks like we have the best model out of our variables.
+A quick `summary` shows that all of our variables are significant with the near
+exception of `normal_nucleoli`. However, that variable may have a relationship
+with another that *is* significant. Probably why that one survived the cut.
+
+# Predictions!
+Now we have an optimized model, we can run it through its paces. We're really
+just seeing if the model is accurate or not with known factors. Based on the
+trend of the model, how well does that predict on the training set?
+
+## Training Prediction
+```{r train.predict}
+# Predictions from training set
+dt.train.p <- predict(dt.model2, type = 'response', dt.train)
+# Factorizing the results to B or M based on the cutoff of 50% probability
+dt.train.p.f <- factor(dt.train.p >= cutoff, labels = c('B', 'M'))
+
+# Making a confusion matrix from our dependent variable an our results
+dt.train.cm <- confusionMatrix(dt.train$Class, dt.train.p.f)
+dt.train.cm 
+```
+There's a lot of data to unpack here. The important bits are a very respectable
+97% accuracy with 7 false negative and 6 false positives. An accuracy this high
+is at risk of being an overfit and only testing it will prove otherwise.
+
+## Testing Prediction
+So if the model is overfit to the training data (a poor random sampling), we'll
+see here. Otherwise, the binomial logistic regression model is a great fit for
+this data!
+
+```{r test.predict}       
+dt.test.p <- predict(dt.model2, type = 'response', dt.test)
+
+dt.test.p.f <- factor(dt.test.p >= cutoff, labels = c('B', 'M'))
+
+dt.test.cm <- confusionMatrix(dt.test$Class, dt.test.p.f )
+dt.test.cm 
+```
+Again we have a 95% accuracy, which is quite high. The only thing I noticed here
+is that there is a poorer performance for predicting `B`, while predicting `M` 
+remained relatively the same from training and testing. This could just be due
+to the small sample sizes.
+
+## Predicting with ROC
+I don't think we've messed with Receiver Operating Characteristic (ROC) so far
+in this class. Super helpful name too - doesn't tell me much about itself! The
+ROC curve is a test of sensitivity and selectivity, basically the true positive
+and true negative rate and the closer it is to 1, the more accurate your model is.
+For instance a 100% rate for both would be an "L" rotated 90*, or a right angle
+from 90* to 180*. A plot will make more sense of this...
+
+### Train ROC
+So we create our `roc` using our dependent variable of the applicable data set
+and the predictions. The 2nd bit below gives us values of the specificity and
+selection.
+
+```{r train.roc}       
+dt.train.roc <- roc(dt.train$Class, dt.train.p)
+dt.train.roc
+plot(dt.train.roc)
+dt.train.roc.c <- coords(roc=dt.train.roc, x = 'best', best.method = 'closest.topleft')
+dt.train.roc.c
+```
+So, that looks kind of like what I was describing with a rounded corner to show
+it's not quite perfect with our few false predictions. 
+
+### Test ROC
+Now do test!
+
+```{r test.roc}       
+dt.test.roc <- roc(dt.test$Class, dt.test.p)
+dt.test.roc
+plot(dt.test.roc)
+dt.test.roc.c <- coords(roc=dt.test.roc, x = 'best', best.method = 'closest.topleft')
+dt.test.roc.c
+```
+Ohh, neat. We have a perfect sensitivity of 1, meaning that our model got all
+the true positives right. specificity isn't quite there yet, meaning we have a 
+few false negatives... In this case, with `B` being the positive, a false negative
+means a misdiagonsis of a `Benign` cancer actually being `Malignant`. So not good.
+We could rearrange all this, but I'm okay with  the connotation that `Benign` is
+`Positive`.
+
+## ROC Predictions
+Why did we do that? Performing ROC gave us s a new cutoff value that is more 
+accurate than `0.5` that we chose. This is the threshold that is from the roc
+`coords` function. I think this directly translates that anything below that
+threshold is negative, or `M`. 
+
+### Train ROC Predictions
+With our seemingly more accurate threshold, let's put it to task.
+```{r train.roc.pred}
+dt.train.roc.p <- factor(dt.train.p >= as.numeric(dt.train.roc.c[1]), labels = c('B', 'M'))
+
+dt.train.roc.cm <- confusionMatrix(dt.train$Class, dt.train.roc.p)
+dt.train.roc.cm
+```
+We have a 97.9% accuracy. This is only 0.3% better than the 50% threshold. Still,
+it is an improvement.
+
+### Test ROC Predictions
+Now with the test set... The ROC results were very good for this.
+
+```{r test.roc.pred}
+dt.test.roc.p <- factor(dt.test.p >= as.numeric(dt.test.roc.c[1]), labels = c('B', 'M'))
+dt.test.roc.cm <- confusionMatrix(dt.test$Class, dt.test.roc.p)
+dt.test.roc.cm
+```
+Better than the previous test predictions, just like train was better than the
+first.
+
+### ROC Plots
+So the beauty of ROC is in plotting them for a quick comparison of the most 
+efficient models.
+
+``` {r roc.plot}
+plot(dt.train.roc)
+plot(dt.test.roc, add=TRUE, col='red')
+```
+We can handily see that the black line, or our training ROC is the more accurate
+one.
+
+
+# Confusion Matrices
+So I went a little crazy - all of our confusion matrix summaries are in line
+above, with pretty solid conclusions after them. I wanted to try to figure out
+how to plot this mess. I found a solution and it is anything but elegant, but
+at least it's descriptive.
+
+``` {r wow}
+library(ggplot2)    
+library(ggpubr)     
+library(likert)
+
+dt.train.cm.data <- as.data.frame(dt.train.cm$table) # extract the confusion matrix values as data.frame
+dt.train.cm.stats <- data.frame(dt.train.cm$overall) # confusion matrix statistics as data.frame
+dt.train.cm.stats$dt.train.cm.overall <- round(dt.train.cm.stats$dt.train.cm.overall,2) # round the values
+dt.train.cm.data$diag <- dt.train.cm.data$Prediction == dt.train.cm.data$Reference # Get the Diagonal
+dt.train.cm.data$ndiag <- dt.train.cm.data$Prediction != dt.train.cm.data$Reference # Off Diagonal     
+dt.train.cm.data[dt.train.cm.data == 0] <- NA # Replace 0 with NA for white tiles
+dt.train.cm.data$Reference <-  reverse.levels(dt.train.cm.data$Reference) # diagonal starts at top left
+dt.train.cm.data$ref_freq <- dt.train.cm.data$Freq * ifelse(is.na(dt.train.cm.data$diag),-1,1)
+
+dt.train.cm.plot <-  ggplot(data = dt.train.cm.data, aes(x = Prediction , y =  Reference, fill = Freq))+
+  scale_x_discrete(position = "top") +
+  geom_tile( data = dt.train.cm.data,aes(fill = ref_freq)) +
+  scale_fill_gradient2(guide = FALSE ,low="red3",high="orchid4", midpoint = 0,na.value = 'white') +
+  geom_text(aes(label = Freq), color = 'black', size = 3)+
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.position = "none",
+        panel.border = element_blank(),
+        plot.background = element_blank(),
+        axis.line = element_blank(),
+        )
+
+dt.test.cm.data <- as.data.frame(dt.test.cm$table) # extract the confusion matrix values as data.frame
+dt.test.cm.stats <- data.frame(dt.test.cm$overall) # confusion matrix statistics as data.frame
+dt.test.cm.stats$dt.test.cm.overall <- round(dt.test.cm.stats$dt.test.cm.overall,2) # round the values
+dt.test.cm.data$diag <- dt.test.cm.data$Prediction == dt.test.cm.data$Reference # Get the Diagonal
+dt.test.cm.data$ndiag <- dt.test.cm.data$Prediction != dt.test.cm.data$Reference # Off Diagonal     
+dt.test.cm.data[dt.test.cm.data == 0] <- NA # Replace 0 with NA for white tiles
+dt.test.cm.data$Reference <-  reverse.levels(dt.test.cm.data$Reference) # diagonal starts at top left
+dt.test.cm.data$ref_freq <- dt.test.cm.data$Freq * ifelse(is.na(dt.test.cm.data$diag),-1,1)
+
+dt.test.cm.plot <-  ggplot(data = dt.test.cm.data, aes(x = Prediction , y =  Reference, fill = Freq))+
+  scale_x_discrete(position = "top") +
+  geom_tile( data = dt.test.cm.data,aes(fill = ref_freq)) +
+  scale_fill_gradient2(guide = FALSE ,low="red3",high="orchid4", midpoint = 0,na.value = 'white') +
+  geom_text(aes(label = Freq), color = 'black', size = 3)+
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.position = "none",
+        panel.border = element_blank(),
+        plot.background = element_blank(),
+        axis.line = element_blank(),
+        )
+
+dt.train.roc.cm.data <- as.data.frame(dt.train.roc.cm$table) # extract the confusion matrix values as data.frame
+dt.train.roc.cm.stats <- data.frame(dt.train.roc.cm$overall) # confusion matrix statistics as data.frame
+dt.train.roc.cm.stats$dt.train.roc.cm.overall <- round(dt.train.roc.cm.stats$dt.train.roc.cm.overall,2) # round the values
+dt.train.roc.cm.data$diag <- dt.train.roc.cm.data$Prediction == dt.train.roc.cm.data$Reference # Get the Diagonal
+dt.train.roc.cm.data$ndiag <- dt.train.roc.cm.data$Prediction != dt.train.roc.cm.data$Reference # Off Diagonal     
+dt.train.roc.cm.data[dt.train.roc.cm.data == 0] <- NA # Replace 0 with NA for white tiles
+dt.train.roc.cm.data$Reference <-  reverse.levels(dt.train.roc.cm.data$Reference) # diagonal starts at top left
+dt.train.roc.cm.data$ref_freq <- dt.train.roc.cm.data$Freq * ifelse(is.na(dt.train.roc.cm.data$diag),-1,1)
+
+dt.train.roc.cm.plot <-  ggplot(data = dt.train.roc.cm.data, aes(x = Prediction , y =  Reference, fill = Freq))+
+  scale_x_discrete(position = "top") +
+  geom_tile( data = dt.train.roc.cm.data,aes(fill = ref_freq)) +
+  scale_fill_gradient2(guide = FALSE ,low="red3",high="orchid4", midpoint = 0,na.value = 'white') +
+  geom_text(aes(label = Freq), color = 'black', size = 3)+
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.position = "none",
+        panel.border = element_blank(),
+        plot.background = element_blank(),
+        axis.line = element_blank(),
+        )
+
+dt.test.roc.cm.data <- as.data.frame(dt.test.roc.cm$table) # extract the confusion matrix values as data.frame
+dt.test.roc.cm.stats <- data.frame(dt.test.roc.cm$overall) # confusion matrix statistics as data.frame
+dt.test.roc.cm.stats$dt.test.roc.cm.overall <- round(dt.test.roc.cm.stats$dt.test.roc.cm.overall,2) # round the values
+dt.test.roc.cm.data$diag <- dt.test.roc.cm.data$Prediction == dt.test.roc.cm.data$Reference # Get the Diagonal
+dt.test.roc.cm.data$ndiag <- dt.test.roc.cm.data$Prediction != dt.test.roc.cm.data$Reference # Off Diagonal     
+dt.test.roc.cm.data[dt.test.roc.cm.data == 0] <- NA # Replace 0 with NA for white tiles
+dt.test.roc.cm.data$Reference <-  reverse.levels(dt.test.roc.cm.data$Reference) # diagonal starts at top left
+dt.test.roc.cm.data$ref_freq <- dt.test.roc.cm.data$Freq * ifelse(is.na(dt.test.roc.cm.data$diag),-1,1)
+
+dt.test.roc.cm.plot <-  ggplot(data = dt.test.roc.cm.data, aes(x = Prediction , y =  Reference, fill = Freq))+
+  scale_x_discrete(position = "top") +
+  geom_tile( data = dt.test.roc.cm.data,aes(fill = ref_freq)) +
+  scale_fill_gradient2(guide = FALSE ,low="red3",high="orchid4", midpoint = 0,na.value = 'white') +
+  geom_text(aes(label = Freq), color = 'black', size = 3)+
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.position = "none",
+        panel.border = element_blank(),
+        plot.background = element_blank(),
+        axis.line = element_blank(),
+        )
+ggarrange(dt.train.cm.plot, dt.test.cm.plot, dt.train.roc.cm.plot, dt.test.roc.cm.plot + rremove("x.text"), 
+          labels = c("train", "test", "tr.roc", "te.roc"),
+          ncol = 2, nrow = 2)
+```
+The way this came out is True Positive:False Positive on top and False Negative:
+True Negative on bottom. I wanted to make it more descriptive, but I ran out of
+brain power.
+
+We can see that both the models with the ROC suggested threshold are more accurate
+overall and in the case of cancer, that's most definitely a good thing.
+
+# Conclusions
+That was a lot. We made our binomial regression model, trimmed it down a bit with
+`stepAIC` to make it as efficient as possible while still utilizing the most
+variables possible. Turns out, that resulted in a highly accurate model with a
+50% certainty threshold. After running ROC on our predictions, we found more
+accurate thresholds which ended up increasing accuracy on both our training
+and test data sets. 
+
+Overall, I'd say this data set was specifically selected for it's extremely
+efficient logistic regression model with minimal effort. There's a lot more
+that we could have gone into to fine-tune a logistic regression model, but it 
+was absolutely not necessary to produce a very good model for our purposes. 
+
+
+
