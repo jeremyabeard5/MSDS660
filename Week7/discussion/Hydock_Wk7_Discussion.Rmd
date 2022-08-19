@@ -1,0 +1,279 @@
+---
+title: 'Week 7 Discussion: Non-Parametric Statistics'
+author: "Ken Hydock"
+date: "2022-08-16"
+output:
+  word_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Load the Required Libraries
+I have a few extra libraries that were not in the demo. Additionally, I didn't
+encounter anything that required `dplyr`. I commented with what function is
+utilized by each library.
+
+```{r libs, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if (!require(data.table)) {
+  install.packages('data.table')
+  require(data.table)
+}
+# For SIGN.test
+if (!require(BSDA)) {
+  install.packages('BSDA')
+  require(BSDA)
+}
+# For kruskal
+if (!require(agricolae)) {
+  install.packages('agricolae')
+  require(agricolae)
+}
+# For ad.test
+if (!require(nortest)) {
+  install.packages('nortest')
+  require(nortest)
+}
+# For spearman.test
+if (!require(pspearman)) {
+  install.packages('pspearman')
+  require(pspearman)
+}
+```
+Flu Shot
+Which non-parametric test did you use?
+Is there a significant difference in median flu antibodies detected with the new flu vaccine?
+What is the p-value that supports your claim?
+MPG
+Which non-parametric test did you use?
+Is there a difference in median mpg between Japanese and US cars?
+What is the p-value that supports your claim?
+Vocab
+Which non-parametric test did you use?
+Does vocab training significantly improve median test scores?
+What is the p-value that supports your claim?
+Menu
+Which non-parametric test did you use?
+Is there a significant difference in salt in the menu items? 
+What is the p-value that supports your claim?
+
+# Import, Inspect and Correct Data
+So... Either I'm blind or the `MPG` and `Menu` data sets aren't in our weekly
+files. Adapting and overcoming, I thought `MPG` meant `ggplot2::mpg` but I was
+wrong as that doesn't have a country of origin variable to work with. We could
+go crazy and mess with that data set to get what is intended, but ironically I 
+don't that that is what was intended. I'm at a complete loss for the `Menu` data
+set as my Google-Fu did not return any standard matching that name. Moving on with
+just the two sets provided...
+
+```{r env and data}
+setwd("~/MSDS/MSDS660/wk7")
+
+# Set for repeatable results specifically with KS test
+set.seed(42)
+
+flu <- fread("new_flu_shot.csv")
+str(flu)
+flu$new.vaccine <-as.numeric(flu$new.vaccine)
+flu <- flu[complete.cases(flu)]
+
+vocab <- fread("vocab.csv")
+str(vocab)
+```
+You can see `flu` needed some work. We had character encoded numbers and fixing
+that introduced an `NA`, so we fixed that by only using `complete.cases`. The
+`vocab` set looks good and we're ready to get into the meat of this discussion.
+
+# Flu
+```{r flu}
+View(flu)
+summary(flu)
+par(mfrow = c(1,2))
+hist(flu$old.vaccine)
+hist(flu$new.vaccine)
+```
+Looking at the data, we're comparing an old to a new vaccine and judging from the
+discussion assignment, it seems the integers are antibody levels. Both distributions
+are severely non-normal. This could just be due to the sample size, but the fact
+remains. Through `summary` we can also see the *medians* are very close.
+
+## Flu Normality Testing
+It certainly looks like our data is non-normal, but we were given a couple tests
+to check.
+
+### Anderson-Darling
+`ad.test` simply tests for normality and a p-value less than significance
+indicates it is **NOT** normal. 
+
+```{r flu.Anderson-Darling}
+ad.test(flu$old.vaccine)
+ad.test(flu$new.vaccine)
+```
+Interestingly, the old vaccine is **NOT** normal, while the new vaccine technically
+is. I think this is an artifact of such a small data set and we'll continue with
+the reasonable assumption that it is not normal. It certainly doesn't look normal
+and quite similar to the old vaccine.
+
+### Kolmogorov-Smirnov Test
+`ks.test` is used to either check for normal distribution (one sample) or check
+to see if two samples came from the same distribution. We'll be using the latter
+to see if old and new follow the same distribution.
+
+```{r flu.Kolmogorov-Smirnov}
+ks.test(flu$old.vaccine, flu$new.vaccine)
+```
+That's a high p-value so we **fail** to reject the null hypothesis and state that 
+the distributions are NOT significantly different. Since they are not significantly
+different and old is definitely non-normal, I think this reinforces my assumption
+that new vaccine is also technically non-normal. 
+
+## Non-Parametric Tests
+Most of our Non-Parametric tests are just comparing *medians* of our variables.
+I think since we have half as many data sets to work with, we can make up by
+running twice as many tests?
+
+H0 - There is no difference between old and new.
+HA - There are more antibodies in the new vaccine.
+
+### SIGN.test
+`SIGN.test` is just comparing the *median* without regard to the magnitude, so 
+like the name it's just a greater, less than, or simply different test. We'll 
+test to see if the `old.vaccine` *median* is less than that of the `new.vaccine`.
+(Spoiler: It isn't.)
+
+```{r flu.SIGN.test}
+SIGN.test(x = flu$old.vaccine, y = flu$new.vaccine, alternative = 'less')
+```
+So what do we get from this? The p-value of 0.788 is not significant, so neither
+is the difference between the means. I also believe we can get from the `-Inf` or
+negative infinity value, that the opposite is true and that the old median is
+actually greater than the new, albeit insignificantly. 
+
+### Mann-Withney-Wilcoxon
+`wilcox.test` is used in different ways for different tests, like "Wilcoxon 
+signed-rank" test and "Mann-Withney-Wilcoxon" test. This is really just the
+difference between paired and independent variables respectively. I think in our
+context, we need to use the "Mann-Withney-Wilcoxon" independent test, since this
+appears to be two different vaccines and not one with and without an additive 
+(as far as we know). With our hypothesis, we also want this to be one-sided to
+see if old is less than new. 
+
+```{r flu.Mann-Withney-Wilcoxon}
+wilcox.test(flu$old.vaccine, flu$new.vaccine, alternative = 'less')
+```
+The p-value says it's not significant and the alternate hypothesis says the 
+shift is less than 0, or negative, meaning the difference is negative and that
+the new is less than the old vaccine antibodies. 
+
+## Flu Results
+`SIGN.test` with a p-value of 0.788 indicates that our *medians* are not
+significantly different and indicates that the slight difference is negative,
+meaning that `new.vaccine` actually has a less *median* antibody count than
+`old.vaccine`.
+
+`wilcox.test` of the "Mann-Withney-Wilcoxon" or independent variety, has a p-value
+of 0.634 and a negative location shift. This gives us the same results that the
+difference is not significant, but is negative.
+
+In both cases, we prove H0 that there is no significant difference in antibody 
+count between `old.vaccine` and `new.vaccine`.
+
+# Vocab
+```{r vocab}
+View(vocab)
+summary(vocab)
+par(mfrow = c(1,2))
+hist(vocab$before.training)
+hist(vocab$after.training)
+```
+Looking at the data, we're comparing an individuals before and after vocabulary
+training. `before.training` looks pretty normal and `after.training` looks skewed
+to the left. Since this is going to be `paired`, non-parametric testing is suitable
+since I doubt `after.training` will qualify as normal. Through `summary` we can 
+also see the *medians* are relatively close.
+
+## Vocab Normality Testing
+Let's check my early assumption that at least one of these is not normal.
+
+### Anderson-Darling
+`ad.test` simply tests for normality and a p-value less than significance
+indicates it is **NOT** normal. 
+
+```{r vocab.Anderson-Darling}
+ad.test(vocab$before.training)
+ad.test(vocab$after.training)
+```
+So maybe this would be okay with standard t-testing, but that's not our goal here
+and we'll continue on with the topic of non-parametric testing.
+
+### Kolmogorov-Smirnov Test
+`ks.test` is used to either check for normal distribution (one sample) or check
+to see if two samples came from the same distribution. Let's see if these are
+seemingly from the same distribution.
+
+```{r vocab.Kolmogorov-Smirnov}
+ks.test(vocab$before.training, vocab$after.training)
+```
+That's a high p-value so we **fail** to reject the null hypothesis and state that 
+the distributions are NOT significantly different. So far everything is tracking
+for saying this is a normal distribution set... Oh well. 
+
+## Non-Parametric Tests
+This is a paired set, as in it's the same student before and after training, so
+the variables are dependent on one another. This will change the way we run a 
+test or two.
+
+H0 - There is no difference in vocabulary after training.
+HA - There is a positive difference in vocabulary after training.
+
+### SIGN.test
+`SIGN.test` is just comparing the *median* without regard to the magnitude, so 
+like the name it's just a greater, less than, or simply different test. In this
+case we're testing for the same as before, 
+
+```{r vocab.SIGN.test}
+SIGN.test(x = vocab$before.training, y = vocab$after.training, alternative = 'less')
+```
+Okay, so I guess I didn't get how to read the test for `flu`, but I think I have 
+it now! I see "median of x-y" and that's a negative value, meaning y, or `after.training`
+is actually slightly higher. Either way, it doesn't matter because it appears
+by the p-value of 0.08978 that the difference isn't significant.
+
+### Mann-Withney-Wilcoxon
+`wilcox.test` is used in different ways for different tests, like "Wilcoxon 
+signed-rank" test and "Mann-Withney-Wilcoxon" test. This is really just the
+difference between paired and independent variables respectively. I think in this
+context for `vocab`, we need to use the "Wilcoxon signed-rank" paired test as
+this is the same subjects before and after training. With my hypothesis, we can
+continue in a one-sided fashion, looking for an improvement with the training.
+
+```{r vocab.Wilcoxon signed-rank}
+wilcox.test(vocab$before.training, vocab$after.training, paired = TRUE, alternative = 'less')
+```
+Hooray! We have an affirmative result for the alternate hypothesis. A p-value of
+0.03892 indicates there is a significant difference between the *medians* and
+with our one-sided test, it indicates that the proficiency is significantly 
+greater after training!
+
+## Vocab Results
+`SIGN.test` with a p-value of 0.08978 indicates that our *medians* are not
+significantly different, but close to it. We can also see that the median difference
+is negative, indicating that `after.training` is 2 points by median higher than
+`before.training`. So this half-proved the alternate hypothesis. 
+
+`wilcox.test` of the "Wilcoxon signed-rank" or paired variety, has a p-value
+of 0.03892 affirming the alternate hypothesis in both significance and scope.
+
+HA - There is a positive difference in vocabulary after training.
+
+# Conclusion
+The findings for the two data sets we were actually given shows the difference
+between independent and paired samples nicely, as well as a contrast between
+proving and disproving H0. 
+
+The "Kruskal-Wallis" test is left out as it needs 3 or more variables and neither
+of our sets have that. I did not run the correlation tests as well for the same
+reason. 
+

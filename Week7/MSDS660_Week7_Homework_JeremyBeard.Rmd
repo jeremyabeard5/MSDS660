@@ -1,0 +1,123 @@
+---
+title: "MSDS 660 Week 7 Homework Assignment"
+author: "Jeremy Beard"
+date: '2022-08-17'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Introduction 
+
+In this week's assignment, we will explore the concept of nonparametric statistics. Nonparametric statistics come into play when traditional assumptions about a dataset are not able to be made e.g. the data is not assumed to be normal, or the sample size is small. These nonparametric statistic tests can be performed regardless of the distribution of the data. However, given that these tests make less assumptions about the data and can be applied more widely, the conclusions they're able to draw are less powerful as a result. 
+
+In this assignment, we will be using a dataset that compares the effect of a placebo with the effect of a new drug. The sample size is only five (5) for each variable so they are small datasets. Because they are small datasets, not many assumptions can be made about their distributions so nonparametric statistics will come into play. 
+
+```{r}
+# First, we will load the libraries and the dataset
+library(data.table)
+library(BSDA)
+library(agricolae)
+
+# Is there a significant difference in the medians of 
+# the placebo dataset vs. the medians of the new drug dataset?
+
+# Load the data:
+dt <- read.csv("C:\\Users\\jerem\\OneDrive\\Documents\\School\\_REGIS\\2022-05_Summer\\MSDS660\\Week7\\placebo_new_drug.csv")
+dt <- as.data.table(dt)
+
+```
+
+
+#### Methods 
+
+The statistical methods and tests we will be performing in this week's assignment are a Shapiro-Wilks test to try to glean information about the distribution of the data. This test will tell us if we can safely reject the null hypothesis or not and will see if the data is non-normal or if it may be normal. True normality cannot be concluded from this test however.
+
+We will also perform a Wilcoxon Signed test to compare the two (2) datasets as a whole. This will give us an indicator of if the two (2) populations are significantly different or not.
+
+We will also perform a Sign test which will give us another indicator for comparing the two (2) datasets. The Sign test will tell us if the medians of the two (2) datasets are significantly different or not. This is similar to a t-test but a t-test compares population means while the Sign test compares population medians.
+
+First, below, we will examine the data and create some preliminary charts to observe the shape of the data.
+
+```{r}
+# View the structure of the data
+dt
+summary(dt)
+str(dt)
+nrow(dt)
+ncol(dt)
+
+# Create boxplots and histograms
+boxplot(dt)
+title("Placebo vs. New Drug")
+#Hmm should I remove the outlier 12? There are only 5 datapoints....hmm.....I will not
+
+hist(dt$Placebo)
+hist(dt$New.Drug)
+
+```
+
+
+#### Results 
+
+The Shapiro-Wilk normality test gave a p-value of 0.25 for the Placebo variable, and 0.93 for the New Drug variable. This indicates the populations cannot be said to be not normal, so they may be normal distributions.
+
+The median of the Placebo variable was six (6) while the median of the New Drug variable was three (3).
+
+The Wilcoxon Sign test gave a p value JUST above 0.05, at 0.059. This indicates that the populations are not significantly different.
+
+The Sign test gave a p value of 0.97 which indicates the medians of the populations are not significantly different. Nothing seems to be significant!
+
+Given the few tests we performed on the data, the null hypothesis that the two populations are not significantly different cannot be rejected. All tests resulted in p-values greater than 0.05 which indicates that the results are not significantly different. 
+
+From the results, it seems like more tests need to be performed. Or really, there needs to be more data! Only having 5 datapoints to work with is really not much and I would say NO strong conclusions can be gained from this information. 
+
+```{r}
+
+# Use the shapiro-wilks test to see if they are from a normal distribution
+shapiro.test(dt$Placebo)
+shapiro.test(dt$New.Drug)
+# we have a small sample size so determining the distribution of the data is important
+# using the shapiro-wilks test, the p values of each variable were above 0.05 which
+# does not indicate non-normality. The data may be called normal
+
+# Are the data paired or unpaired?
+# The data is paired because each placebo datapoint can be paired with the new.drug datapoint
+# this will make comparison easier
+
+# i will perform a Wilcoxon Signed Test to see if the two populations have a significant different 
+median(dt$Placebo)
+median(dt$New.Drug)
+#the medians certainly seem significantly different! But we will see
+
+wilcox.test(dt$Placebo, dt$New.Drug)
+# the wilcoxon test produced a p value greater than 0.05, so no conclusions can be made from this test
+
+# Let's perform a sign test now
+SIGN.test(x = dt$Placebo, y = dt$New.Drug, alternative = 'less')
+# This p value is huge, so we cannot say that the two median's are any different really. 
+# We fail to reject the null hypothesis in this case
+
+```
+
+#### Conclusion 
+
+From all the information above, it can be said that the new drug does not have a significant effect on the population, compared to the placebo. The p-values on all tests performed were above 0.05 and no comparison yielded a significant effect. 
+
+Future steps with this data may be more tests to see if we can learn anything else about the distributions of the data, or learn anything useful when comparing the data to each other. 
+
+Another large critique I have of the data used in this week's assignment, also stated above, is that the sample size is only 5 for each of the variables! This is an extremely insignificant sample size and I would say regardless of what the statistical tests conclude, everything should be taken with a grain of salt as five (5) datapoints is not much to analyze. Usually drug trials are much more far-reaching and populations are much higher.
+
+Thank you!
+
+Jeremy
+
+#### References
+
+1) Quantifying Health. (n.d.). How to Report the Shapiro-Wilk Test. Retrieved August 17, 2022, from https://quantifyinghealth.com/report-shapiro-wilk-test/
+
+2) GraphPad Software, LLC. (n.d.). Interpreting results: Wilcoxon signed rank test. GraphPad Prism 9 Statistics Guide. Retrieved August 17, 2022, from https://www.graphpad.com/guides/prism/latest/statistics/stat_interpreting_results_wilcoxon_.htm

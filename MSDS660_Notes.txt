@@ -19,3 +19,36 @@ MSDS 660 Notes: Statistics
 			Brief explanation
 			Interpretation of results
 			
+			
+	Week 7: Nonparametric statistics
+		Sign Test (test for a population median)
+			Gives inference about population median, while t-test gives inference about a population mean
+		
+		Wilcoxon Signed Ranks Test (Compare two populations: paired difference)
+			Requires symmetric distribution
+			suitable when data is measured as a pair (before after score, for example)
+		
+		Mann-Whitney U-Test (compare distribution of two independent samples)
+			Inference for two independent samples
+			Populations compared are assumed to have same shape and spread
+			ex. comparing sale performance of Team A and Team B 
+		
+		Kruskal-Wallis Test (compare three or more populations)
+			3+ independent samples
+			required that k samples are random and independent, samples come from continuous probability distribution. 
+			each sample should have at least 5 measurements
+			
+		Kolmogorov-Smirnov (K-S) Test
+			single sample and two independent samples
+			distribution-free
+		
+		Anderson-Darling Test
+			Measures how well data follows a specific distribution
+			more sensitive than K-S test
+		
+		Spearman's Rank Correlation Coefficient
+			measures corerlation between 2 ranked variables
+			requires that 2 variables are randomly sel;ectged and probability distribtiion of both are vcontginuoius
+			
+		
+			
